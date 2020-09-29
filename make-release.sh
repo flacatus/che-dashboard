@@ -38,6 +38,9 @@ else
   BASEBRANCH="${BRANCH}"
 fi
 
+# work in tmp dir
+#TMP=$(mktemp -d); pushd "$TMP" > /dev/null || exit 1
+
 # get sources from ${BASEBRANCH} branch
 echo "Check out ${REPO} to ${TMP}/${REPO##*/}"
 git fetch origin "${BASEBRANCH}":"${BASEBRANCH}"
@@ -52,8 +55,8 @@ if [[ "${BASEBRANCH}" != "${BRANCH}" ]]; then
 fi
 
 # change VERSION file
-npm --no-git-tag-version version ${VERSION}
-
+echo "${VERSION}" > VERSION
+git status
 # commit change into branch
 if [[ ${NOCOMMIT} -eq 0 ]]; then
   COMMIT_MSG="[release] Bump to ${VERSION} in ${BRANCH}"
@@ -66,7 +69,10 @@ if [[ $TRIGGER_RELEASE -eq 1 ]]; then
   # push new branch to release branch to trigger CI build
   git fetch origin "${BRANCH}:${BRANCH}"
   git checkout "${BRANCH}"
-  docker build -t "quay/mkuznets/che-dashboard:${VERSION}" -f apache.Dockerfile .
+  npm --no-git-tag-version version ${{ github.event.inputs.version }}
+  git commit -asm "Release version ${{ github.event.inputs.version }}"
+  git branch release -f 
+  git push origin release -f
 
   # tag the release
   git checkout "${BRANCH}"
@@ -90,8 +96,7 @@ else
 fi
 
 # change VERSION file
-npm --no-git-tag-version version ${{ github.event.inputs.version }}
-
+echo "${NEXTVERSION}" > VERSION
 if [[ ${NOCOMMIT} -eq 0 ]]; then
   BRANCH=${BASEBRANCH}
   # commit change into branch
@@ -110,11 +115,12 @@ if [[ ${NOCOMMIT} -eq 0 ]]; then
     git push origin "${PR_BRANCH}"
     lastCommitComment="$(git log -1 --pretty=%B)"
     hub pull-request -o -f -m "${lastCommitComment}
+
 ${lastCommitComment}" -b "${BRANCH}" -h "${PR_BRANCH}"
   fi 
 fi
 
-popd > /dev/null || exit
+#popd > /dev/null || exit
 
 # cleanup tmp dir
-cd /tmp && rm -fr "$TMP"
+#cd /tmp && rm -fr "$TMP"
